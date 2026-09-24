@@ -1,0 +1,6 @@
+.venv/
+data/
+artifacts/
+mlruns/
+__pycache__/
+*.egg-info/
