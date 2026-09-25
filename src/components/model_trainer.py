@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 
+import mlflow
 import joblib
 import json
 import numpy as np
@@ -59,44 +60,62 @@ class ModelTrainer:
             X_val = val[NUM_FEATURES + CAT_FEATURES]
             y_val = val[TARGET]
 
-            xgb_pipe = Pipeline([
-                ("pre", ColumnTransformer([
-                    ("num", "passthrough", NUM_FEATURES),
-                    ("cat", OneHotEncoder(handle_unknown="ignore"), CAT_FEATURES)
-                ])),
-                ("model", XGBClassifier(eval_metric="aucpr", random_state=42, n_jobs=1)),
+            mlflow.set_tracking_uri("sqlite:///mlflow.db")
+            mlflow.set_experiment("flood_risk_model")
 
-            ])
+            with mlflow.start_run(run_name="xgboost"):
 
-            scale_pos_weight = (y_train == 0).sum() / (y_train == 1).sum()
-            param_dist = {
-                "model__n_estimators": [200, 400, 600],
-                "model__max_depth": [3, 4, 6, 8],
-                "model__learning_rate": [0.01, 0.05, 0.1],
-                "model__subsample": [0.7, 0.9, 1.0],
-                "model__colsample_bytree": [0.7, 0.9, 1.0],
-                "model__min_child_weight": [1, 5, 10],
-                "model__scale_pos_weight": [1, scale_pos_weight],
-            }
+                xgb_pipe = Pipeline([
+                    ("pre", ColumnTransformer([
+                        ("num", "passthrough", NUM_FEATURES),
+                        ("cat", OneHotEncoder(handle_unknown="ignore"), CAT_FEATURES)
+                    ])),
+                    ("model", XGBClassifier(eval_metric="aucpr", random_state=42, n_jobs=1)),
 
-            tscv = TimeSeriesSplit(n_splits=4)
-            search = RandomizedSearchCV(
-                xgb_pipe, param_distributions=param_dist, n_iter=20,
-                scoring="average_precision", cv=tscv, random_state=42, n_jobs=-1,
-            )
-            logging.info("Starting hyperparameter search")
-            search.fit(X_train, y_train)
-            logging.info(f"Best params: {search.best_params_}")
-            logging.info(f"Best CV PR-AUC: {search.best_score_:.4f}")
+                ])
 
-            best_model = search.best_estimator_
-            y_score = best_model.predict_proba(X_val)[:, 1]
-            threshold = best_threshold(y_val, y_score, beta=1.0)
-            y_pred = (y_score >= threshold).astype(int)
-            val_metrics = evaluate(y_val, y_pred, y_score)
-            logging.info(f"Val metrics at threshold={threshold:.3f}: {val_metrics}")
+                scale_pos_weight = (y_train == 0).sum() / (y_train == 1).sum()
+                param_dist = {
+                    "model__n_estimators": [200, 400, 600],
+                    "model__max_depth": [3, 4, 6, 8],
+                    "model__learning_rate": [0.01, 0.05, 0.1],
+                    "model__subsample": [0.7, 0.9, 1.0],
+                    "model__colsample_bytree": [0.7, 0.9, 1.0],
+                    "model__min_child_weight": [1, 5, 10],
+                    "model__scale_pos_weight": [1, scale_pos_weight],
+                }
 
-            save_object(MODELS_DIR / "xgboost_flood_advisory.joblib", best_model)
+                tscv = TimeSeriesSplit(n_splits=4)
+                search = RandomizedSearchCV(
+                    xgb_pipe, param_distributions=param_dist, n_iter=20,
+                    scoring="average_precision", cv=tscv, random_state=42, n_jobs=1,
+                )
+                logging.info("Starting hyperparameter search")
+                search.fit(X_train, y_train)
+                logging.info(f"Best params: {search.best_params_}")
+                logging.info(f"Best CV PR-AUC: {search.best_score_:.4f}")
+
+                best_model = search.best_estimator_
+                y_score = best_model.predict_proba(X_val)[:, 1]
+                threshold = best_threshold(y_val, y_score, beta=1.0)
+                y_pred = (y_score >= threshold).astype(int)
+                val_metrics = evaluate(y_val, y_pred, y_score)
+                logging.info(f"Val metrics at threshold={threshold:.3f}: {val_metrics}")
+
+                mlflow.log_params(search.best_params_)
+                mlflow.log_param("threshold", threshold)
+                mlflow.log_metric("cv_pr_auc", search.best_score_)
+                for name, value in val_metrics.items():
+                    mlflow.log_metric(f"val_{name}", value)
+                
+                # Save model locally
+                model_path = MODELS_DIR / "xgboost_flood_advisory.joblib"
+                save_object(model_path, best_model)
+                # Log the saved model file to MLflow
+                mlflow.log_artifact(str(model_path), artifact_path="model")
+
+                logging.info("Model saved and logged to MLflow")
+
             save_json(MODELS_DIR / "model_config.json", {
                 "threshold": threshold,
                 "num_features": NUM_FEATURES,
