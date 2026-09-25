@@ -1,0 +1,9 @@
+[ 2026-09-25 18:24:29,575 ] 16 root - INFO - found the dataset at (csv_path)
+[ 2026-09-25 18:24:30,214 ] 24 root - INFO - Ingestion complete. (91325, 19) 
+ saved raw data to artifacts\raw.csv
+[ 2026-09-25 18:24:30,355 ] 74 root - INFO - Loaded raw data: (91325, 19)
+[ 2026-09-25 18:24:30,433 ] 77 root - INFO - Features built: (91125, 32), positive rate 0.0727
+[ 2026-09-25 18:24:30,448 ] 80 root - INFO - Split -> train 63775, val 9125, test 18225
+[ 2026-09-25 18:24:31,149 ] 87 root - INFO - Saved train -> artifacts\train.csv
+[ 2026-09-25 18:24:31,252 ] 87 root - INFO - Saved val -> artifacts\val.csv
+[ 2026-09-25 18:24:31,464 ] 87 root - INFO - Saved test -> artifacts\test.csv
