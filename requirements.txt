@@ -3,3 +3,7 @@ pandas
 numpy
 seaborn
 matplotlib
+"rain_sum"
+"temperature_2m_max"
+"soil_moisture_0_to_7cm_mean"
+"flood_risk_score"pathlib
