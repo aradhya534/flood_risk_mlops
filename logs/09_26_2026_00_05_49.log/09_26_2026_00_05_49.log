@@ -1,0 +1,11 @@
+[ 2026-09-26 00:05:50,761 ] 16 root - INFO - found the dataset at (csv_path)
+[ 2026-09-26 00:05:51,405 ] 24 root - INFO - Ingestion complete. (91325, 19) 
+ saved raw data to artifacts\raw.csv
+[ 2026-09-26 00:05:51,565 ] 74 root - INFO - Loaded raw data: (91325, 19)
+[ 2026-09-26 00:05:51,654 ] 77 root - INFO - Features built: (91125, 32), positive rate 0.0727
+[ 2026-09-26 00:05:51,671 ] 80 root - INFO - Split -> train 63775, val 9125, test 18225
+[ 2026-09-26 00:05:52,363 ] 87 root - INFO - Saved train -> artifacts\train.csv
+[ 2026-09-26 00:05:52,468 ] 87 root - INFO - Saved val -> artifacts\val.csv
+[ 2026-09-26 00:05:52,682 ] 87 root - INFO - Saved test -> artifacts\test.csv
+[ 2026-09-26 00:05:52,893 ] 54 root - INFO - Loaded data: train 63775, val 9125
+[ 2026-09-26 00:05:52,895 ] 87 root - INFO - Starting hyperparameter search

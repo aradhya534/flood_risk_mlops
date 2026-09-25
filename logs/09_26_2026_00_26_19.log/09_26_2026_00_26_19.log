@@ -1,0 +1,17 @@
+[ 2026-09-26 00:26:21,353 ] 16 root - INFO - found the dataset at (csv_path)
+[ 2026-09-26 00:26:22,524 ] 24 root - INFO - Ingestion complete. (91325, 19) 
+ saved raw data to artifacts\raw.csv
+[ 2026-09-26 00:26:22,746 ] 74 root - INFO - Loaded raw data: (91325, 19)
+[ 2026-09-26 00:26:22,940 ] 77 root - INFO - Features built: (91125, 32), positive rate 0.0727
+[ 2026-09-26 00:26:22,995 ] 80 root - INFO - Split -> train 63775, val 9125, test 18225
+[ 2026-09-26 00:26:25,846 ] 87 root - INFO - Saved train -> artifacts\train.csv
+[ 2026-09-26 00:26:26,292 ] 87 root - INFO - Saved val -> artifacts\val.csv
+[ 2026-09-26 00:26:27,106 ] 87 root - INFO - Saved test -> artifacts\test.csv
+[ 2026-09-26 00:26:27,768 ] 54 root - INFO - Loaded data: train 63775, val 9125
+[ 2026-09-26 00:26:27,772 ] 87 root - INFO - Starting hyperparameter search
+[ 2026-09-26 00:28:06,185 ] 89 root - INFO - Best params: {'model__subsample': 0.7, 'model__scale_pos_weight': np.float64(13.399412960036125), 'model__n_estimators': 400, 'model__min_child_weight': 5, 'model__max_depth': 6, 'model__learning_rate': 0.01, 'model__colsample_bytree': 0.7}
+[ 2026-09-26 00:28:06,188 ] 90 root - INFO - Best CV PR-AUC: 0.3477
+[ 2026-09-26 00:28:06,430 ] 97 root - INFO - Val metrics at threshold=0.702: {'precision': 0.2947019867549669, 'recall': 0.5769854132901134, 'f1': 0.39013698630136984, 'pr_auc': 0.31667501323725067}
+[ 2026-09-26 00:28:06,460 ] 25 root - INFO - object saved successfully
+[ 2026-09-26 00:28:06,466 ] 35 root - INFO - json object saved successfully
+[ 2026-09-26 00:28:06,466 ] 108 root - INFO - Saved model and config to models

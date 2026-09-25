@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 from src.exception import CustomException
 from src.logger import logging
-from src.components.data_transformation import DataTransformation
+
 
 class DataIngestion:
     def __init__(self, raw_data_dir: str="data"):
@@ -29,6 +29,3 @@ class DataIngestion:
             raise CustomException(e, sys)
 
 
-if __name__ == "__main__":
-    raw_path = DataIngestion().initiate()
-    train_path, val_path, test_path = DataTransformation(raw_path).initiate()

@@ -64,13 +64,13 @@ def split_by_time(df: pd.DataFrame,
         
 
 class DataTransformation:
-    def __init__(self, raw_path):
-        self.raw_path = Path(raw_path)
+    def __init__(self):
+        
         self.output_dir = Path("artifacts")
 
-    def initiate(self) -> tuple[Path, Path, Path]:
+    def initiate(self, raw_path: Path) -> tuple[Path, Path, Path]:
         try:
-            raw = pd.read_csv(self.raw_path, parse_dates=["date"])
+            raw = pd.read_csv(raw_path, parse_dates=["date"])
             logging.info(f"Loaded raw data: {raw.shape}")
 
             df = build_features(raw)
