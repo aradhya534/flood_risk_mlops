@@ -1,0 +1,5 @@
+[core]
+    remote = storage
+['remote "storage"']
+    url = s3://flood-risk-mlops-aradhya534-mumbai/dvcstore
+    region = ap-south-1
