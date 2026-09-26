@@ -2,12 +2,12 @@ name: CI
 
 on:
   push:
-    branches:["**"]
+    branches: ["**"]
   pull_request:
-    branches:["**"]
-  
-  jobs:
-    lint-and-test:
+    branches: ["**"]
+
+jobs:
+  lint-and-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,27 +17,25 @@ on:
         with:
           python-version: "3.12"
 
-      - name: install dependencies
+      - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install  flake8 black pytest
+          pip install flake8 black pytest
 
       - name: Lint with flake8
-        run: flake8 src app tests --max-line-length=120 --extend-ignore=E2003
-      
+        run: flake8 src app tests --max-line-length=120 --extend-ignore=E203
+
       - name: Check formatting with black
         run: black --check src app tests
-      
+
       - name: Run tests
         run: pytest -v
 
+  build-docker:
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    steps:
+      - uses: actions/checkout@v4
 
-    build-docker:
-      runs-on: ubuntu-latest
-      needs: lint-and-test
-      
-      steps:
-        - uses: actions/checkout@v4
-        
-        - name: Build Docker image
-          run: docker build -t flood-risk-api .
+      - name: Build Docker image
+        run: docker build -t flood-risk-api .
