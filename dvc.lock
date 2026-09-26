@@ -1,0 +1,67 @@
+schema: '2.0'
+stages:
+  ingest:
+    cmd: python -m src.components.data_ingestion
+    deps:
+    - path: data
+      hash: md5
+      md5: 18906d36aa44eea0c7bde3a39c8e6b58.dir
+      size: 13953131
+      nfiles: 1
+    - path: src/components/data_ingestion.py
+      hash: md5
+      md5: 01fc6ac69e3b1f00cccd9ee9191b7bbe
+      size: 1054
+    outs:
+    - path: artifacts/raw.csv
+      hash: md5
+      md5: 08d254c98f2e9fe8c46eb313727ad05f
+      size: 13788999
+  transform:
+    cmd: python -m src.components.data_transformation
+    deps:
+    - path: artifacts/raw.csv
+      hash: md5
+      md5: 08d254c98f2e9fe8c46eb313727ad05f
+      size: 13788999
+    - path: src/components/data_transformation.py
+      hash: md5
+      md5: e28d34057e120882a286099f1564ca43
+      size: 4341
+    outs:
+    - path: artifacts/test.csv
+      hash: md5
+      md5: b86d23afe409cb03dd56a51adc473ab0
+      size: 5232411
+    - path: artifacts/train.csv
+      hash: md5
+      md5: a487c9239cddc225a7e818420be4df4c
+      size: 17718418
+    - path: artifacts/val.csv
+      hash: md5
+      md5: 78409f53a47d3fada041b6392a22d33f
+      size: 2605587
+  train:
+    cmd: python -m src.components.model_trainer
+    deps:
+    - path: artifacts/train.csv
+      hash: md5
+      md5: a487c9239cddc225a7e818420be4df4c
+      size: 17718418
+    - path: artifacts/val.csv
+      hash: md5
+      md5: 78409f53a47d3fada041b6392a22d33f
+      size: 2605587
+    - path: src/components/model_trainer.py
+      hash: md5
+      md5: 5a930bd5175b6968d02e0e4cc7c07083
+      size: 6046
+    outs:
+    - path: models/model_config.json
+      hash: md5
+      md5: b08b3d7e24f5d17bb719962eab6b844e
+      size: 1029
+    - path: models/xgboost_flood_advisory.joblib
+      hash: md5
+      md5: 1762daab311f5bc2525a77bf6e596456
+      size: 1605185
