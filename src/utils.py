@@ -1,5 +1,4 @@
 from pathlib import Path
-import numpy as np
 import pandas as pd
 from src.exception import CustomException
 import sys
@@ -15,7 +14,7 @@ def load_file(file_path: Path):
 
     except Exception as e:
         raise CustomException(e, sys)
-    
+
 
 def save_object(file_path, obj):
     try:
@@ -25,6 +24,7 @@ def save_object(file_path, obj):
         logging.info("object saved successfully")
     except Exception as e:
         raise CustomException(e, sys)
+
 
 def save_json(file_path, obj):
     try:
@@ -50,5 +50,3 @@ def load_json(file_path):
             return json.load(f)
     except Exception as e:
         raise CustomException(e, sys)
-
-

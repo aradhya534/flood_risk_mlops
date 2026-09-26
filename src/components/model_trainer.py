@@ -2,20 +2,18 @@ import sys
 from pathlib import Path
 
 import mlflow
-import joblib
-import json
 import numpy as np
-import pandas as pd
 
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import OneHotEncoder
 from sklearn.model_selection import TimeSeriesSplit, RandomizedSearchCV
 from sklearn.metrics import (
-    precision_score, recall_score, f1_score,
-    average_precision_score, precision_recall_curve,
+    precision_score,
+    recall_score,
+    f1_score,
+    average_precision_score,
+    precision_recall_curve,
 )
 from xgboost import XGBClassifier
 
@@ -26,28 +24,30 @@ from src.components.data_transformation import NUM_FEATURES, CAT_FEATURES, TARGE
 from src.utils import save_json
 from src.utils import save_object
 
-
 ARTIFACTS_DIR = Path("artifacts")
 MODELS_DIR = Path("models")
 
-def evaluate(y_true, y_pred, y_score=None) -> dict:
-    return{
-        "precision": precision_score(y_true, y_pred, zero_division=0),
-        "recall":recall_score(y_true, y_pred, zero_division=0),
-        "f1":f1_score(y_true,y_pred),
-        "pr_auc": average_precision_score(y_true, y_score if y_score is not None else y_pred)
 
+def evaluate(y_true, y_pred, y_score=None) -> dict:
+    return {
+        "precision": precision_score(y_true, y_pred, zero_division=0),
+        "recall": recall_score(y_true, y_pred, zero_division=0),
+        "f1": f1_score(y_true, y_pred),
+        "pr_auc": average_precision_score(
+            y_true, y_score if y_score is not None else y_pred
+        ),
     }
+
 
 def best_threshold(y_true, y_score, beta: float = 1.0):
     prec, rec, thresh = precision_recall_curve(y_true, y_score)
-    f_scores = (1+beta**2) * (prec*rec) / (beta**2*prec+rec+1e-9)
+    f_scores = (1 + beta**2) * (prec * rec) / (beta**2 * prec + rec + 1e-9)
     idx = np.nanargmax(f_scores[:-1])
     return float(thresh[idx])
 
 
 class ModelTrainer:
-    
+
     def initiate(self, train_path: Path, val_path: Path):
         try:
             train = load_file(train_path)
@@ -65,14 +65,29 @@ class ModelTrainer:
 
             with mlflow.start_run(run_name="xgboost"):
 
-                xgb_pipe = Pipeline([
-                    ("pre", ColumnTransformer([
-                        ("num", "passthrough", NUM_FEATURES),
-                        ("cat", OneHotEncoder(handle_unknown="ignore"), CAT_FEATURES)
-                    ])),
-                    ("model", XGBClassifier(eval_metric="aucpr", random_state=42, n_jobs=1)),
-
-                ])
+                xgb_pipe = Pipeline(
+                    [
+                        (
+                            "pre",
+                            ColumnTransformer(
+                                [
+                                    ("num", "passthrough", NUM_FEATURES),
+                                    (
+                                        "cat",
+                                        OneHotEncoder(handle_unknown="ignore"),
+                                        CAT_FEATURES,
+                                    ),
+                                ]
+                            ),
+                        ),
+                        (
+                            "model",
+                            XGBClassifier(
+                                eval_metric="aucpr", random_state=42, n_jobs=1
+                            ),
+                        ),
+                    ]
+                )
 
                 scale_pos_weight = (y_train == 0).sum() / (y_train == 1).sum()
                 param_dist = {
@@ -87,8 +102,13 @@ class ModelTrainer:
 
                 tscv = TimeSeriesSplit(n_splits=4)
                 search = RandomizedSearchCV(
-                    xgb_pipe, param_distributions=param_dist, n_iter=20,
-                    scoring="average_precision", cv=tscv, random_state=42, n_jobs=1,
+                    xgb_pipe,
+                    param_distributions=param_dist,
+                    n_iter=20,
+                    scoring="average_precision",
+                    cv=tscv,
+                    random_state=42,
+                    n_jobs=1,
                 )
                 logging.info("Starting hyperparameter search")
                 search.fit(X_train, y_train)
@@ -107,7 +127,7 @@ class ModelTrainer:
                 mlflow.log_metric("cv_pr_auc", search.best_score_)
                 for name, value in val_metrics.items():
                     mlflow.log_metric(f"val_{name}", value)
-                
+
                 # Save model locally
                 model_path = MODELS_DIR / "xgboost_flood_advisory.joblib"
                 save_object(model_path, best_model)
@@ -116,20 +136,20 @@ class ModelTrainer:
 
                 logging.info("Model saved and logged to MLflow")
 
-            save_json(MODELS_DIR / "model_config.json", {
-                "threshold": threshold,
-                "num_features": NUM_FEATURES,
-                "cat_features": CAT_FEATURES,
-                "best_params": search.best_params_,
-                "cv_pr_auc": search.best_score_,
-                "val_metrics": val_metrics,
-            })
+            save_json(
+                MODELS_DIR / "model_config.json",
+                {
+                    "threshold": threshold,
+                    "num_features": NUM_FEATURES,
+                    "cat_features": CAT_FEATURES,
+                    "best_params": search.best_params_,
+                    "cv_pr_auc": search.best_score_,
+                    "val_metrics": val_metrics,
+                },
+            )
             logging.info(f"Saved model and config to {MODELS_DIR}")
 
             return val_metrics
 
-            
         except Exception as e:
             raise CustomException(e, sys)
-        
-    

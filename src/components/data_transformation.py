@@ -11,14 +11,28 @@ TARGET = "advisory_48h"
 HORIZON_DAYS = 2
 
 NUM_FEATURES = [
-    "precipitation_sum", "rain_48h", "rain_72h", "rain_7d",
-    "rain_lag1", "rain_lag2", "rain_lag3",
-    "soil_moisture_0_to_7cm_mean", "soil_moisture_7_to_28cm_mean",
-    "soil_saturation_index", "soil_change_3d",
-    "temperature_2m_max", "wind_speed_10m_max",
-    "month_sin", "month_cos", "rain_3d", "rain_max_7d", "wet_days_7d", "soil_mean_7d",
+    "precipitation_sum",
+    "rain_48h",
+    "rain_72h",
+    "rain_7d",
+    "rain_lag1",
+    "rain_lag2",
+    "rain_lag3",
+    "soil_moisture_0_to_7cm_mean",
+    "soil_moisture_7_to_28cm_mean",
+    "soil_saturation_index",
+    "soil_change_3d",
+    "temperature_2m_max",
+    "wind_speed_10m_max",
+    "month_sin",
+    "month_cos",
+    "rain_3d",
+    "rain_max_7d",
+    "wet_days_7d",
+    "soil_mean_7d",
 ]
 CAT_FEATURES = ["district", "climatic_zone"]
+
 
 def add_input_features(df: pd.DataFrame) -> pd.DataFrame:
     """Rain/soil/month features — needs only weather columns, works on future data."""
@@ -31,9 +45,15 @@ def add_input_features(df: pd.DataFrame) -> pd.DataFrame:
     df["rain_3d"] = g["precipitation_sum"].transform(lambda s: s.rolling(3).sum())
     df["rain_7d"] = g["precipitation_sum"].transform(lambda s: s.rolling(7).sum())
     df["rain_max_7d"] = g["precipitation_sum"].transform(lambda s: s.rolling(7).max())
-    df["wet_days_7d"] = g["precipitation_sum"].transform(lambda s: (s >= 1).rolling(7).sum())
-    df["soil_change_3d"] = df["soil_saturation_index"] - g["soil_saturation_index"].shift(3)
-    df["soil_mean_7d"] = g["soil_saturation_index"].transform(lambda s: s.rolling(7).mean())
+    df["wet_days_7d"] = g["precipitation_sum"].transform(
+        lambda s: (s >= 1).rolling(7).sum()
+    )
+    df["soil_change_3d"] = df["soil_saturation_index"] - g[
+        "soil_saturation_index"
+    ].shift(3)
+    df["soil_mean_7d"] = g["soil_saturation_index"].transform(
+        lambda s: s.rolling(7).mean()
+    )
 
     df["month_sin"] = np.sin(2 * np.pi * df["date"].dt.month / 12)
     df["month_cos"] = np.cos(2 * np.pi * df["date"].dt.month / 12)
@@ -58,10 +78,12 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def split_by_time(df: pd.DataFrame,
-                train_end_year: int = 2021,
-                val_year: int = 2022,
-                test_start_year: int = 2023) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def split_by_time(
+    df: pd.DataFrame,
+    train_end_year: int = 2021,
+    val_year: int = 2022,
+    test_start_year: int = 2023,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Chronological split — train on the past, validate and test on later years.
     No shuffling: row order in time is what makes this a fair simulation of
     predicting the future from the past."""
@@ -69,11 +91,11 @@ def split_by_time(df: pd.DataFrame,
     val = df[df["date"].dt.year == val_year].reset_index(drop=True)
     test = df[df["date"].dt.year >= test_start_year].reset_index(drop=True)
     return train, val, test
-        
+
 
 class DataTransformation:
     def __init__(self):
-        
+
         self.output_dir = Path("artifacts")
 
     def initiate(self, raw_path: Path) -> tuple[Path, Path, Path]:
@@ -82,10 +104,14 @@ class DataTransformation:
             logging.info(f"Loaded raw data: {raw.shape}")
 
             df = build_features(raw)
-            logging.info(f"Features built: {df.shape}, positive rate {df['advisory_48h'].mean():.4f}")
+            logging.info(
+                f"Features built: {df.shape}, positive rate {df['advisory_48h'].mean():.4f}"
+            )
 
             train, val, test = split_by_time(df)
-            logging.info(f"Split -> train {len(train)}, val {len(val)}, test {len(test)}")
+            logging.info(
+                f"Split -> train {len(train)}, val {len(val)}, test {len(test)}"
+            )
 
             paths = {}
             for name, part in [("train", train), ("val", val), ("test", test)]:
@@ -98,4 +124,3 @@ class DataTransformation:
 
         except Exception as e:
             raise CustomException(e, sys)
-

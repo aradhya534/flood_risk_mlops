@@ -14,19 +14,21 @@ def _sample_records(district="Ampara", zone="Dry", n_days=20):
     """20 days of synthetic history — same shape /predict expects."""
     records = []
     for i in range(n_days):
-        records.append({
-            "date": f"2023-01-{i+1:02d}",
-            "district": district,
-            "climatic_zone": zone,
-            "precipitation_sum": 5.0 + i,
-            "rain_48h": 10.0,
-            "rain_72h": 15.0,
-            "soil_moisture_0_to_7cm_mean": 0.3,
-            "soil_moisture_7_to_28cm_mean": 0.3,
-            "soil_saturation_index": 0.3,
-            "temperature_2m_max": 28.0,
-            "wind_speed_10m_max": 10.0,
-        })
+        records.append(
+            {
+                "date": f"2023-01-{i+1:02d}",
+                "district": district,
+                "climatic_zone": zone,
+                "precipitation_sum": 5.0 + i,
+                "rain_48h": 10.0,
+                "rain_72h": 15.0,
+                "soil_moisture_0_to_7cm_mean": 0.3,
+                "soil_moisture_7_to_28cm_mean": 0.3,
+                "soil_saturation_index": 0.3,
+                "temperature_2m_max": 28.0,
+                "wind_speed_10m_max": 10.0,
+            }
+        )
     return records
 
 
@@ -54,7 +56,9 @@ def test_predict_batch_accepts_multiple_districts():
 
 def test_predict_rejects_invalid_soil_moisture():
     records = _sample_records()
-    records[0]["soil_moisture_0_to_7cm_mean"] = 5.0   # out of the 0-1 range, should be rejected
+    records[0][
+        "soil_moisture_0_to_7cm_mean"
+    ] = 5.0  # out of the 0-1 range, should be rejected
     response = client.post("/predict", json={"records": records})
     assert response.status_code == 422
 
