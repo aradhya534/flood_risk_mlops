@@ -20,35 +20,43 @@ NUM_FEATURES = [
 ]
 CAT_FEATURES = ["district", "climatic_zone"]
 
+def add_input_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Rain/soil/month features — needs only weather columns, works on future data."""
+    df = df.sort_values(["district", "date"]).reset_index(drop=True).copy()
+    g = df.groupby("district")
+
+    for lag in [1, 2, 3]:
+        df[f"rain_lag{lag}"] = g["precipitation_sum"].shift(lag)
+
+    df["rain_3d"] = g["precipitation_sum"].transform(lambda s: s.rolling(3).sum())
+    df["rain_7d"] = g["precipitation_sum"].transform(lambda s: s.rolling(7).sum())
+    df["rain_max_7d"] = g["precipitation_sum"].transform(lambda s: s.rolling(7).max())
+    df["wet_days_7d"] = g["precipitation_sum"].transform(lambda s: (s >= 1).rolling(7).sum())
+    df["soil_change_3d"] = df["soil_saturation_index"] - g["soil_saturation_index"].shift(3)
+    df["soil_mean_7d"] = g["soil_saturation_index"].transform(lambda s: s.rolling(7).mean())
+
+    df["month_sin"] = np.sin(2 * np.pi * df["date"].dt.month / 12)
+    df["month_cos"] = np.cos(2 * np.pi * df["date"].dt.month / 12)
+    return df
+
+
+def add_target(df: pd.DataFrame) -> pd.DataFrame:
+    """Needs flood_category — only available for historical/labeled data."""
+    df = df.copy()
+    g = df.groupby("district")
+    df["is_advisory"] = (df["flood_category"] != "Low Risk (Normal)").astype(int)
+    df[TARGET] = g["is_advisory"].shift(-HORIZON_DAYS)
+    return df
+
 
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
-    try:
-        """Add lag/rolling features and the target. Must run on the FULL sorted
-        series, before any split — see the earlier discussion on why."""
-        df = df.sort_values(["district", "date"]).reset_index(drop=True).copy()
-        g = df.groupby("district")
+    """Training-time only: input features + target, then drop incomplete rows."""
+    df = add_input_features(df)
+    df = add_target(df)
+    df = df.dropna(subset=[TARGET] + NUM_FEATURES).reset_index(drop=True)
+    df[TARGET] = df[TARGET].astype(int)
+    return df
 
-        df["is_advisory"] = (df["flood_category"] != "Low Risk (Normal)").astype(int)
-        df[TARGET] = g["is_advisory"].shift(-HORIZON_DAYS)
-
-        for lag in [1, 2, 3]:
-            df[f"rain_lag{lag}"] = g["precipitation_sum"].shift(lag)
-
-        df["rain_3d"] = g["precipitation_sum"].transform(lambda s: s.rolling(3).sum())
-        df["rain_7d"] = g["precipitation_sum"].transform(lambda s: s.rolling(7).sum())
-        df["rain_max_7d"] = g["precipitation_sum"].transform(lambda s: s.rolling(7).max())
-        df["wet_days_7d"] = g["precipitation_sum"].transform(lambda s: (s >= 1).rolling(7).sum())
-        df["soil_change_3d"] = df["soil_saturation_index"] - g["soil_saturation_index"].shift(3)
-        df["soil_mean_7d"] = g["soil_saturation_index"].transform(lambda s: s.rolling(7).mean())
-
-        df["month_sin"] = np.sin(2 * np.pi * df["date"].dt.month / 12)
-        df["month_cos"] = np.cos(2 * np.pi * df["date"].dt.month / 12)
-
-        df = df.dropna(subset=[TARGET] + NUM_FEATURES).reset_index(drop=True)
-        df[TARGET] = df[TARGET].astype(int)
-        return df
-    except Exception as e:
-        raise CustomException(e, sys)
 
 def split_by_time(df: pd.DataFrame,
                 train_end_year: int = 2021,

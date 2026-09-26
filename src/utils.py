@@ -37,3 +37,18 @@ def save_json(file_path, obj):
         raise CustomException(e, sys)
 
 
+def load_object(file_path):
+    try:
+        return joblib.load(file_path)
+    except Exception as e:
+        raise CustomException(e, sys)
+
+
+def load_json(file_path):
+    try:
+        with open(file_path, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        raise CustomException(e, sys)
+
+
