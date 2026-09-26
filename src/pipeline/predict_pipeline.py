@@ -1,3 +1,4 @@
+from mlflow.entities import dataset_record_source
 from src.components.model_trainer import MODELS_DIR
 import sys
 from pathlib import Path
@@ -38,3 +39,12 @@ class PredictPipeline:
             return result.reset_index(drop=True)
         except Exception as e:
             raise CustomException(e, sys)
+
+    def predict_from_records(self, records: list[dict]) -> list[dict]:
+        """Takes a list of dicts (already-validated Pydantic records, via .model_dump()),
+        returns a list of dicts ready for a JSON response. Used by both /predict and
+        /predict/batch, since the underlying logic is identical either way."""
+        df = pd.DataFrame(records)
+        df["date"] = pd.to_datetime(df["date"])
+        result = self.predict(df)
+        return result.to_dict(orient="records")

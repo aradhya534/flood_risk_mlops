@@ -33,13 +33,24 @@ def health():
 
 @app.post("/predict")
 def predict(request: PredictRequest):
+    if len(request.records) == 0:
+        raise HTTPException(status_code=422, detail="No records provided")
+    districts = {r.district for r in request.records}
+    if len(districts) > 1:
+        raise HTTPException(status_code=422, detail="/predict accepts one district at a time; use /predict/batch for multiple")
     try:
-        df = pd.DataFrame([r.model_dump() for r in request.records])
-        df["date"] = pd.to_datetime(df["date"])
-        result = predict_pipeline.predict(df)
-        return result.to_dict(orient="records")
+        return predict_pipeline.predict_from_records([r.model_dump() for r in request.records])
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.post("/predict/batch")
+def predict_batch(request: PredictRequest):
+    try:
+        return predict_pipeline.predict_from_records([r.model_dump() for r in request.records])
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
