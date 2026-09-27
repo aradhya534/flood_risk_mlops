@@ -1,0 +1,28 @@
+stages:
+  ingest:
+    cmd: python -m src.components.data_ingestion
+    deps:
+      - src/components/data_ingestion.py
+      - data
+    outs:
+      - artifacts/raw.csv
+
+  transform:
+    cmd: python -m src.components.data_transformation
+    deps:
+      - src/components/data_transformation.py
+      - artifacts/raw.csv
+    outs:
+      - artifacts/train.csv
+      - artifacts/val.csv
+      - artifacts/test.csv
+
+  train:
+    cmd: python -m src.components.model_trainer
+    deps:
+      - src/components/model_trainer.py
+      - artifacts/train.csv
+      - artifacts/val.csv
+    outs:
+      - models/xgboost_flood_advisory.joblib
+      - models/model_config.json

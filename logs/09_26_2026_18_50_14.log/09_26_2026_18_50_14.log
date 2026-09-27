@@ -1,0 +1,6 @@
+[ 2026-09-26 18:50:14,961 ] 104 root - INFO - Loaded raw data: (91325, 19)
+[ 2026-09-26 18:50:15,060 ] 107 root - INFO - Features built: (91125, 32), positive rate 0.0727
+[ 2026-09-26 18:50:15,080 ] 112 root - INFO - Split -> train 63775, val 9125, test 18225
+[ 2026-09-26 18:50:15,821 ] 121 root - INFO - Saved train -> artifacts\train.csv
+[ 2026-09-26 18:50:15,927 ] 121 root - INFO - Saved val -> artifacts\val.csv
+[ 2026-09-26 18:50:16,138 ] 121 root - INFO - Saved test -> artifacts\test.csv

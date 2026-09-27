@@ -4,3 +4,5 @@ artifacts/
 mlruns/
 __pycache__/
 *.egg-info/
+models/
+.venv_312/

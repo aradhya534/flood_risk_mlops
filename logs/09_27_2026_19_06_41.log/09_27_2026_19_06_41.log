@@ -1,0 +1,5 @@
+[ 2026-09-27 19:07:52,340 ] 19 root - INFO - Loaded model, threshold=0.702
+[ 2026-09-27 19:10:50,875 ] 55 root - INFO - fetched 21 days of weather for Anuradhapura (2026-09-04 to 2026-09-24)
+[ 2026-09-27 19:11:12,790 ] 55 root - INFO - fetched 21 days of weather for Colombo (2026-09-04 to 2026-09-24)
+[ 2026-09-27 19:11:30,831 ] 55 root - INFO - fetched 21 days of weather for Kandy (2026-09-04 to 2026-09-24)
+[ 2026-09-27 19:11:50,003 ] 55 root - INFO - fetched 21 days of weather for Kurunegala (2026-09-04 to 2026-09-24)

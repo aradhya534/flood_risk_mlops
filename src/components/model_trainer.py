@@ -153,3 +153,13 @@ class ModelTrainer:
 
         except Exception as e:
             raise CustomException(e, sys)
+
+
+if __name__ == "__main__":
+    ModelTrainer().initiate(
+        Path("artifacts") / "train.csv",
+        Path("artifacts") / "val.csv",
+    )
+
+
+

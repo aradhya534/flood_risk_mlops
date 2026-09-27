@@ -1,0 +1,11 @@
+[ 2026-09-26 18:42:55,361 ] 16 root - INFO - found the dataset at data\sri_lanka_flood_risk_modeled.csv
+[ 2026-09-26 18:42:56,098 ] 24 root - INFO - Ingestion complete. (91325, 19) 
+ saved raw data to artifacts\raw.csv
+[ 2026-09-26 18:42:56,271 ] 104 root - INFO - Loaded raw data: (91325, 19)
+[ 2026-09-26 18:42:56,390 ] 107 root - INFO - Features built: (91125, 32), positive rate 0.0727
+[ 2026-09-26 18:42:56,409 ] 112 root - INFO - Split -> train 63775, val 9125, test 18225
+[ 2026-09-26 18:42:57,240 ] 121 root - INFO - Saved train -> artifacts\train.csv
+[ 2026-09-26 18:42:57,361 ] 121 root - INFO - Saved val -> artifacts\val.csv
+[ 2026-09-26 18:42:57,608 ] 121 root - INFO - Saved test -> artifacts\test.csv
+[ 2026-09-26 18:42:57,832 ] 55 root - INFO - Loaded data: train 63775, val 9125
+[ 2026-09-26 18:42:59,701 ] 113 root - INFO - Starting hyperparameter search

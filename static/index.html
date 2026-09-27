@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sri Lanka Flood Risk</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-slate-900 to-blue-950 text-slate-100 min-h-screen flex items-center justify-center p-4">
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+function RiskGauge({ score }) {
+  const pct = Math.round(score * 100);
+  const color = score >= 0.7 ? "text-red-400" : score >= 0.4 ? "text-amber-400" : "text-emerald-400";
+  const ring = score >= 0.7 ? "stroke-red-400" : score >= 0.4 ? "stroke-amber-400" : "stroke-emerald-400";
+  const circumference = 2 * Math.PI * 54;
+  const offset = circumference - (score * circumference);
+
+  return (
+    <div className="relative w-36 h-36 mx-auto">
+      <svg className="w-36 h-36 -rotate-90">
+        <circle cx="72" cy="72" r="54" strokeWidth="10" className="stroke-slate-700 fill-none" />
+        <circle
+          cx="72" cy="72" r="54" strokeWidth="10"
+          className={`fill-none ${ring} transition-all duration-1000 ease-out`}
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className={`text-3xl font-bold ${color}`}>{pct}%</span>
+      </div>
+    </div>
+  );
+}
+
+// Cycles through staged messages while a request is in flight, so the wait
+// feels like progress rather than a frozen spinner. The real work (weather
+// fetch + model inference) happens in one backend call; these timings are
+// just illustrative pacing, not measured checkpoints.
+function useLoadingStages(active) {
+  const stages = ["Finding your location…", "Fetching live weather data…", "Running the flood risk model…"];
+  const [stage, setStage] = useState(0);
+  useEffect(() => {
+    if (!active) { setStage(0); return; }
+    const t1 = setTimeout(() => setStage(1), 900);
+    const t2 = setTimeout(() => setStage(2), 2400);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [active]);
+  return stages[stage];
+}
+
+function InfoPanel() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-6 border-t border-slate-700/50 pt-4">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between text-sm text-slate-400 hover:text-slate-300"
+      >
+        <span>How this prediction works</span>
+        <span className={`transition-transform inline-block ${open ? "rotate-180" : ""}`}>⌄</span>
+      </button>
+      {open && (
+        <div className="mt-3 text-xs text-slate-400 space-y-2 leading-relaxed text-left">
+          <p>
+            This uses live weather data (rainfall, soil moisture, temperature, wind) from
+            the same reanalysis source — Open-Meteo / ECMWF ERA5 — that the underlying
+            model was trained on, so live conditions are directly comparable to training data.
+          </p>
+          <p>
+            The model is an XGBoost classifier trained on 10 years (2015–2024) of daily
+            data across all 25 Sri Lankan districts, predicting flood advisories 48 hours
+            ahead based on rainfall accumulation and soil saturation trends, not just
+            same-day rainfall.
+          </p>
+          <p>
+            On held-out 2023–2024 data it never saw during training, the model correctly
+            identified 66% of actual flood advisories, with a precision of 37% — meaning
+            it deliberately favors catching more real events at the cost of some false
+            alarms, which is the right trade-off for an early-warning tool.
+          </p>
+          <div className="flex gap-2 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 mt-3">
+            <span className="text-amber-400 text-sm leading-none">⚠</span>
+            <p className="text-amber-300/90 text-xs leading-relaxed">
+              <span className="font-semibold text-amber-300">Portfolio/research project — not validated for real emergency decisions.</span>{" "}
+              Each district is represented by a single reference point, so hyper-local
+              variation within a district isn't captured. For actual flood warnings, follow
+              official Sri Lankan disaster management guidance.
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function App() {
+  const [mode, setMode] = useState("location"); // "location" | "district"
+  const [districts, setDistricts] = useState([]);
+  const [selected, setSelected] = useState("");
+  const [state, setState] = useState({ status: "idle" }); // idle | loading | done | error
+  const loadingText = useLoadingStages(state.status === "loading");
+
+  useEffect(() => {
+    fetch("/districts")
+      .then((r) => r.json())
+      .then((data) => {
+        setDistricts(data);
+        if (data.length) setSelected(data[0].district);
+      })
+      .catch(() => {});
+  }, []);
+
+  const runPrediction = async (lat, lon) => {
+    setState({ status: "loading" });
+    try {
+      const res = await fetch(`/predict/live?lat=${lat}&lon=${lon}`);
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Prediction failed");
+      }
+      const data = await res.json();
+      setState({ status: "done", data: data[0] });
+    } catch (e) {
+      setState({ status: "error", message: e.message });
+    }
+  };
+
+  const checkMyLocation = () => {
+    if (!navigator.geolocation) {
+      setState({ status: "error", message: "Geolocation isn't supported by your browser." });
+      return;
+    }
+    setState({ status: "loading" });
+    navigator.geolocation.getCurrentPosition(
+      (pos) => runPrediction(pos.coords.latitude, pos.coords.longitude),
+      () => setState({ status: "error", message: "Location access denied or unavailable." })
+    );
+  };
+
+  const checkSelectedDistrict = () => {
+    const d = districts.find((x) => x.district === selected);
+    if (!d) return;
+    runPrediction(d.latitude, d.longitude);
+  };
+
+  const reset = () => setState({ status: "idle" });
+
+  return (
+    <div className="w-full max-w-sm bg-slate-800/50 backdrop-blur rounded-2xl shadow-2xl p-8 border border-slate-700/50">
+      <h1 className="text-2xl font-bold text-center mb-1">Flood Risk Check</h1>
+      <p className="text-slate-400 text-sm text-center mb-6">
+        48-hour flood advisory prediction for Sri Lanka
+      </p>
+
+      {state.status === "idle" && (
+        <div>
+          <div className="flex bg-slate-900/60 rounded-lg p-1 mb-5 text-sm">
+            <button
+              onClick={() => setMode("location")}
+              className={`flex-1 py-2 rounded-md transition-colors ${mode === "location" ? "bg-blue-600 text-white" : "text-slate-400"}`}
+            >
+              My Location
+            </button>
+            <button
+              onClick={() => setMode("district")}
+              className={`flex-1 py-2 rounded-md transition-colors ${mode === "district" ? "bg-blue-600 text-white" : "text-slate-400"}`}
+            >
+              Select District
+            </button>
+          </div>
+
+          {mode === "location" && (
+            <button
+              onClick={checkMyLocation}
+              className="w-full bg-blue-600 hover:bg-blue-500 transition-colors text-white font-medium py-3 rounded-lg"
+            >
+              Use My Location
+            </button>
+          )}
+
+          {mode === "district" && (
+            <div className="space-y-3">
+              <select
+                value={selected}
+                onChange={(e) => setSelected(e.target.value)}
+                className="w-full bg-slate-900/60 border border-slate-700 rounded-lg py-3 px-3 text-sm"
+              >
+                {districts.map((d) => (
+                  <option key={d.district} value={d.district}>{d.district}</option>
+                ))}
+              </select>
+              <button
+                onClick={checkSelectedDistrict}
+                disabled={!selected}
+                className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 transition-colors text-white font-medium py-3 rounded-lg"
+              >
+                Check This District
+              </button>
+            </div>
+          )}
+
+          <InfoPanel />
+        </div>
+      )}
+
+      {state.status === "loading" && (
+        <div className="text-center py-6">
+          <div className="animate-spin h-8 w-8 border-2 border-blue-400 border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-slate-400 text-sm transition-opacity">{loadingText}</p>
+        </div>
+      )}
+
+      {state.status === "done" && (
+        <div className="text-center">
+          <RiskGauge score={state.data.flood_risk_score} />
+          <p className="mt-4 font-medium">
+            {state.data.advisory_predicted
+              ? "Advisory likely within 48 hours"
+              : "Low risk over the next 48 hours"}
+          </p>
+          <p className="text-slate-400 text-xs mt-1">
+            Nearest matched district: {state.data.matched_district}
+          </p>
+
+          <div className="mt-5 grid grid-cols-2 gap-3 text-left">
+            <div className="bg-slate-900/50 rounded-lg p-3">
+              <div className="text-slate-500 text-xs">72h rainfall</div>
+              <div className="text-lg font-semibold">{state.data.rain_72h_mm} mm</div>
+            </div>
+            <div className="bg-slate-900/50 rounded-lg p-3">
+              <div className="text-slate-500 text-xs">Soil saturation</div>
+              <div className="text-lg font-semibold">{state.data.soil_saturation_pct}%</div>
+            </div>
+          </div>
+          <p className="text-slate-500 text-xs mt-3">Based on data through {state.data.data_as_of}</p>
+
+          <button onClick={reset} className="mt-6 text-sm text-blue-400 hover:text-blue-300">
+            Check again
+          </button>
+          <InfoPanel />
+        </div>
+      )}
+
+      {state.status === "error" && (
+        <div className="text-center">
+          <p className="text-red-400 text-sm mb-4">{state.message}</p>
+          <button onClick={reset} className="text-sm text-blue-400 hover:text-blue-300">
+            Try again
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 from app.main import app
+from src.pipeline.weather_fetch import find_nearest_district
 
 client = TestClient(app)
 
@@ -73,3 +74,7 @@ def test_predict_rejects_missing_field():
 def test_predict_rejects_empty_records():
     response = client.post("/predict", json={"records": []})
     assert response.status_code == 422
+
+def test_find_nearest_district_returns_closest_match():
+    district, lat, lon, zone = find_nearest_district(6.93, 79.85)  # near Colombo
+    assert district == "Colombo"

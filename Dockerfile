@@ -19,6 +19,7 @@ ENV PATH=/root/.local/bin:$PATH
 COPY app/ app/
 COPY src/ src/
 COPY models/ models/
+COPY static/ static/
 COPY configs/ configs/
 
 EXPOSE 8000

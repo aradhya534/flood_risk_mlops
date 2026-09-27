@@ -39,6 +39,17 @@ def add_input_features(df: pd.DataFrame) -> pd.DataFrame:
     df = df.sort_values(["district", "date"]).reset_index(drop=True).copy()
     g = df.groupby("district")
 
+    if "soil_saturation_index" not in df.columns:
+        df["soil_saturation_index"] = (
+            0.6 * df["soil_moisture_0_to_7cm_mean"] + 0.4 * df["soil_moisture_7_to_28cm_mean"]
+        )
+
+    if "rain_48h" not in df.columns:
+        df["rain_48h"] = g["precipitation_sum"].transform(lambda s: s.rolling(2).sum())
+    if "rain_72h" not in df.columns:
+        df["rain_72h"] = g["precipitation_sum"].transform(lambda s: s.rolling(3).sum())
+
+
     for lag in [1, 2, 3]:
         df[f"rain_lag{lag}"] = g["precipitation_sum"].shift(lag)
 
@@ -124,3 +135,7 @@ class DataTransformation:
 
         except Exception as e:
             raise CustomException(e, sys)
+
+
+if __name__ == "__main__":
+    DataTransformation().initiate(Path("artifacts") / "raw.csv")
