@@ -7,6 +7,17 @@ import requests
 from src.exception import CustomException
 from src.logger import logging
 
+from functools import lru_cache
+from pathlib import Path
+
+DISTRICTS_CSV = Path(__file__).resolve().parents[2] / "configs" / "districts.csv"
+
+
+@lru_cache(maxsize=1)
+def load_districts() -> pd.DataFrame:
+    """Read the 25-row district lookup once and reuse it for every request."""
+    return pd.read_csv(DISTRICTS_CSV)
+
 ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 
 VARIABLES = [
@@ -59,16 +70,23 @@ def fetch_weather_history(
 
 
 
-def find_nearest_district(latitude: float, longitude: float) -> tuple[str, float, float, str]:
-    """Approximate which district a coordinate belongs to, by nearest centroid.
-    Imprecise near district borders, since we only have one point per district
-    (its centroid), not its true administrative boundary."""
+def get_district_coordinates(district: str) -> tuple[float, float, str]:
+    """Look up a district's lat/lon/climatic_zone."""
     try:
-        raw = pd.read_csv("artifacts/raw.csv")
-        centroids = raw.drop_duplicates("district")[
-            ["district", "latitude", "longitude", "climatic_zone"]
-        ]
+        districts = load_districts()
+        row = districts[districts["district"] == district]
+        if row.empty:
+            raise ValueError(f"Unknown district: {district}")
+        row = row.iloc[0]
+        return float(row["latitude"]), float(row["longitude"]), str(row["climatic_zone"])
+    except Exception as e:
+        raise CustomException(e, sys)
 
+
+def find_nearest_district(latitude: float, longitude: float) -> tuple[str, float, float, str]:
+    """Approximate which district a coordinate belongs to, by nearest centroid."""
+    try:
+        centroids = load_districts()
         dists = np.sqrt(
             (centroids["latitude"] - latitude) ** 2
             + (centroids["longitude"] - longitude) ** 2

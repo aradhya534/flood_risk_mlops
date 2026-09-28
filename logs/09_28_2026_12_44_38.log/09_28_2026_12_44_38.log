@@ -1,0 +1,4 @@
+[ 2026-09-28 12:44:41,474 ] 19 root - INFO - Loaded model, threshold=0.702
+[ 2026-09-28 12:45:00,098 ] 66 root - INFO - fetched 21 days of weather for Ratnapura (2026-09-05 to 2026-09-25)
+[ 2026-09-28 12:45:14,810 ] 66 root - INFO - fetched 21 days of weather for Polonnaruwa (2026-09-05 to 2026-09-25)
+[ 2026-09-28 12:45:26,587 ] 66 root - INFO - fetched 21 days of weather for Kurunegala (2026-09-05 to 2026-09-25)

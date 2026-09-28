@@ -1,0 +1,4 @@
+[ 2026-09-27 19:47:51,255 ] 19 root - INFO - Loaded model, threshold=0.702
+[ 2026-09-27 19:49:26,919 ] 55 root - INFO - fetched 21 days of weather for Anuradhapura (2026-09-04 to 2026-09-24)
+[ 2026-09-27 19:49:57,790 ] 55 root - INFO - fetched 21 days of weather for Ratnapura (2026-09-04 to 2026-09-24)
+[ 2026-09-27 20:06:48,290 ] 55 root - INFO - fetched 21 days of weather for Kandy (2026-09-04 to 2026-09-24)
