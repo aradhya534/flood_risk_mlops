@@ -2,18 +2,19 @@ from typing import List
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from fastapi.staticfiles import StaticFiles
-import pandas as pd 
 
 
-from src.pipeline.weather_fetch import fetch_weather_history, find_nearest_district, load_districts
+from src.pipeline.weather_fetch import (
+    fetch_weather_history,
+    find_nearest_district,
+    load_districts,
+)
 from src.pipeline.predict_pipeline import PredictPipeline
 from src.components.data_transformation import add_input_features
-
 
 app = FastAPI(title="Flood Risk Advisory API", version="0.1.0")
 
 predict_pipeline = PredictPipeline()
-
 
 
 class WeatherRecord(BaseModel):
@@ -71,7 +72,6 @@ def predict_batch(request: PredictRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
 @app.get("/districts")
 def list_districts():
     return (
@@ -85,7 +85,9 @@ def list_districts():
 def predict_live(lat: float, lon: float):
     try:
         district, centroid_lat, centroid_lon, zone = find_nearest_district(lat, lon)
-        history_df = fetch_weather_history(centroid_lat, centroid_lon, district, zone, days=21)
+        history_df = fetch_weather_history(
+            centroid_lat, centroid_lon, district, zone, days=21
+        )
         records = history_df.to_dict(orient="records")
         result = predict_pipeline.predict_from_records(records)
 
@@ -95,11 +97,14 @@ def predict_live(lat: float, lon: float):
             r["matched_district"] = district
             r["data_as_of"] = str(latest["date"].date())
             r["rain_72h_mm"] = round(float(latest["rain_72h"]), 1)
-            r["soil_saturation_pct"] = round(float(latest["soil_saturation_index"]) * 100, 1)
+            r["soil_saturation_pct"] = round(
+                float(latest["soil_saturation_index"]) * 100, 1
+            )
         return result
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 app.mount("/", StaticFiles(directory="static", html=True), name="static")

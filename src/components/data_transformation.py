@@ -41,14 +41,14 @@ def add_input_features(df: pd.DataFrame) -> pd.DataFrame:
 
     if "soil_saturation_index" not in df.columns:
         df["soil_saturation_index"] = (
-            0.6 * df["soil_moisture_0_to_7cm_mean"] + 0.4 * df["soil_moisture_7_to_28cm_mean"]
+            0.6 * df["soil_moisture_0_to_7cm_mean"]
+            + 0.4 * df["soil_moisture_7_to_28cm_mean"]
         )
 
     if "rain_48h" not in df.columns:
         df["rain_48h"] = g["precipitation_sum"].transform(lambda s: s.rolling(2).sum())
     if "rain_72h" not in df.columns:
         df["rain_72h"] = g["precipitation_sum"].transform(lambda s: s.rolling(3).sum())
-
 
     for lag in [1, 2, 3]:
         df[f"rain_lag{lag}"] = g["precipitation_sum"].shift(lag)

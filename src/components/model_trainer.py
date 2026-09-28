@@ -160,6 +160,3 @@ if __name__ == "__main__":
         Path("artifacts") / "train.csv",
         Path("artifacts") / "val.csv",
     )
-
-
-
