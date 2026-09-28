@@ -1,238 +1,212 @@
 # Sri Lanka Flood Risk Early Warning: An End-to-End MLOps Pipeline
 
-![CI](https://github.com/aradhya534/flood_risk_mlops/actions/workflows/main.yml/badge.svg)
+![CI/CD](https://github.com/aradhya534/flood_risk_mlops/actions/workflows/deploy.yml/badge.svg)
+![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.141-009688?logo=fastapi&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-AWS%20Lambda-2496ED?logo=docker&logoColor=white)
+![AWS Lambda](https://img.shields.io/badge/AWS%20Lambda-Live-FF9900?logo=amazonaws&logoColor=white)
 
-A reproducible machine learning pipeline that predicts, 48 hours in advance, whether a Sri Lankan district will enter a flood advisory. Built to demonstrate production ML practices, not just model accuracy: modular pipeline code, time-aware validation, experiment tracking, a tested and validated inference API, containerization, and CI/CD.
+A production-grade, end-to-end Machine Learning pipeline that predicts, 48 hours in advance, whether a Sri Lankan district will enter a flood advisory. Built to showcase modern MLOps practices: modular design, time-aware validation, experiment tracking, a containerized FastAPI serving layer, live weather integration via Open-Meteo API, and automated deployment to **AWS Lambda** via **Amazon ECR** and **GitHub Actions**.
+
+🌐 **Live Production Application:** [https://yxvbxozs27wy2k43hm7ozquqmm0yukta.lambda-url.us-east-1.on.aws/](https://yxvbxozs27wy2k43hm7ozquqmm0yukta.lambda-url.us-east-1.on.aws/)
 
 ---
 
-## Problem
+## 📌 Key Highlights
 
-Sri Lanka regularly faces monsoon flash floods, river overflows and localized inundation. Traditional alerts often treat rainfall volume the same everywhere, ignoring how extreme a rainfall event is for a particular district and how saturated the ground already is. This project uses district-level climate and soil data to forecast flood advisories early enough to act on, rather than confirming that flooding is already underway.
+- **Live Real-time Inference:** Accepts latitude and longitude inputs, automatically fetches 21 days of historical weather data from the Open-Meteo API, and generates instant flood risk advisories.
+- **Serverless AWS Lambda Deployment:** Containerized with Docker and powered by the **AWS Lambda Web Adapter** to run a full FastAPI web app on AWS Lambda with Function URLs.
+- **Automated CI/CD:** GitHub Actions pipeline (`deploy.yml`) builds the Docker image with `--provenance=false`, pushes to **Amazon Elastic Container Registry (ECR)**, and deploys updates directly to AWS Lambda on every push to `main`.
+- **Strict Time-aware Splits:** Chronological split (2015–2021 train, 2022 validation, 2023–2024 test) to prevent data leakage and simulate true operational forecasting.
+- **Experiment Tracking:** MLflow tracking with threshold tuning to maximize F1 score on imbalanced rare-event data (~7.3% positive rate).
 
-## Dataset
+---
 
-**Source:** [Sri Lanka District Climate and Flood Risk (2015-2024)](https://www.kaggle.com/datasets/rasindupramith/sri-lanka-district-climate-and-flood-risk20152024) on Kaggle, derived from the ECMWF ERA5 reanalysis via the Open-Meteo API.
-
-- **Size:** 91,325 rows (3,653 days x 25 districts), 1 Jan 2015 to 31 Dec 2024, no missing values
-- **Granularity:** daily, one row per district per day
-
-| Group | Variables |
-|---|---|
-| Location | `district`, `latitude`, `longitude`, `province`, `climatic_zone` (Wet / Intermediate / Dry) |
-| Atmosphere | `precipitation_sum`, `temperature_2m_max`, `wind_speed_10m_max` |
-| Hydrology | topsoil moisture (0-7 cm), subsurface moisture (7-28 cm), `rain_48h`, `rain_72h`, `soil_saturation_index` |
-| Risk outputs | `flood_risk_score` (0-100%), `flood_category` (Low Risk, Advisory, High Warning, Critical Emergency) |
-
-**Data quality check:** `precipitation_sum`, `rain_sum` and `rain_24h` are exact duplicate columns in the raw data (verified with a direct equality check across all rows). `precipitation_sum` is used as the canonical column; the other two are dropped.
-
-The risk score and category come from an Extreme Value Theory (Gumbel) model combined with soil saturation. They are model-derived labels, not records of observed flood damage (see [Limitations](#limitations)).
-
-Raw data is not stored in Git (`data/` is gitignored). `data_ingestion.py` reads it from a local CSV (or downloads it via `kagglehub` if missing).
-
-## ML Task
-
-- **Target (`advisory_48h`):** 1 if the district is in Advisory, High Warning or Critical Emergency 48 hours after the observation date, otherwise 0. Positive rate ≈ 7.3% overall.
-- **Why 48 hours ahead, not same-day:** `flood_risk_score` and `flood_category` are computed from same-day rainfall and soil variables. A model predicting them from those same same-day inputs would just reproduce the underlying formula. Predicting 2 days ahead, using only each district's own past values, is the meaningful early-warning problem.
-- **Features (19 numeric + 2 categorical):** same-day and lagged rainfall (`rain_lag1-3`), rolling accumulations (`rain_3d/7d`, `rain_48h/72h`), rainfall intensity and persistence (`rain_max_7d`, `wet_days_7d`), soil moisture at two depths plus its 3-day change and 7-day mean, temperature, wind, cyclical month encoding, `district`, and `climatic_zone`.
-- **Split — chronological, not random:** train 2015–2021, validate on 2022, test on 2023–2024. A random split would let the model see a district's future soil conditions while training on its past, which is unrealistic since the model must work on data collected after training.
-- **Metrics:** advisories are rare, so accuracy is misleading (a model that always predicts "no flood" already scores ~93%). Precision, recall, F1 and PR-AUC are used instead, with the decision threshold tuned on validation data to maximize F1 rather than left at the default 0.5.
-
-## Architecture
+## 🏗️ Architecture
 
 ```mermaid
-flowchart LR
-    A[Kaggle dataset] --> B[data_ingestion.py]
+flowchart TD
+    A[Kaggle ERA5 Climate Data] --> B[data_ingestion.py]
     B --> C[data_transformation.py]
-    C --> D[model_trainer.py + MLflow tracking]
-    D --> E[Saved model + config]
+    C --> D[model_trainer.py + MLflow Tracking]
+    D --> E[Saved XGBoost Model & Config]
+    
     E --> F[predict_pipeline.py]
-    F --> G[FastAPI service]
-    G --> H[Docker container]
-    I[GitHub Actions CI] -.lint, test, build.-> H
+    F --> G[FastAPI Service app/main.py]
+    
+    H[Open-Meteo Weather API] -->|Live History| G
+    
+    G --> I[Docker Container + AWS Lambda Web Adapter]
+    
+    J[GitHub Actions CI/CD] -->|Push Image| K[Amazon ECR]
+    K -->|Deploy Container| L[AWS Lambda Function URL]
+    
+    M[User Browser / Frontend UI] <-->|HTTPS| L
 ```
 
-## Tech Stack
+---
 
-| Area | Tools |
+## 🛠️ Tech Stack
+
+| Area | Tools & Technologies |
 |---|---|
-| Language | Python 3.12 |
-| ML | pandas, scikit-learn, XGBoost |
-| Experiment tracking | MLflow (SQLite backend) |
-| Serving | FastAPI, Pydantic, Uvicorn |
-| Containers | Docker (multi-stage build), Docker Compose |
-| Testing and CI/CD | pytest, flake8, black, GitHub Actions |
+| **Language** | Python 3.12 |
+| **ML & Data** | XGBoost, Scikit-Learn, Pandas, NumPy |
+| **Experiment Tracking** | MLflow (SQLite backend) |
+| **Serving Framework** | FastAPI, Pydantic, Uvicorn, StaticFiles |
+| **Data Source** | Open-Meteo API (Live ERA5 reanalysis) & Kaggle |
+| **Containerization** | Docker (Multi-stage build), AWS Lambda Web Adapter |
+| **Cloud Infrastructure** | AWS Lambda, Amazon ECR (Elastic Container Registry) |
+| **Testing & CI/CD** | Pytest, Flake8, Black, GitHub Actions |
 
-## Repository Structure
+---
+
+## 📁 Repository Structure
 
 ```
 flood_risk_mlops/
-├── .github/workflows/main.yml   # CI: lint (flake8/black), pytest, Docker build
+├── .github/
+│   └── workflows/
+│       ├── main.yml             # CI: Linting, Pytest, Docker Build check
+│       └── deploy.yml           # CD: Build, Push to ECR, Deploy to AWS Lambda
 ├── app/
-│   └── main.py                  # FastAPI service: /predict, /predict/batch, /health
-├── artifacts/                   # raw.csv, train/val/test.csv (gitignored)
+│   └── main.py                  # FastAPI server (/predict, /predict/live, /districts, /health)
+├── artifacts/                   # Extracted datasets and outputs (gitignored)
 ├── configs/
-│   └── params.yaml              # paths and pipeline settings
-├── data/                        # raw Kaggle CSV (gitignored)
-├── models/                      # xgboost_flood_advisory.joblib, model_config.json (gitignored)
+│   ├── districts.csv            # District metadata, coordinates, and climatic zones
+│   └── params.yml               # Pipeline parameters
+├── data/                        # Kaggle raw climate dataset (gitignored)
+├── deploy.ps1                   # Automated local PowerShell deployment script for AWS ECR/Lambda
+├── Dockerfile                   # Multi-stage Dockerfile with AWS Lambda Web Adapter
+├── docker-compose.yml           # Local multi-container setup
+├── models/                      # Trained XGBoost model & model configuration
 ├── notebooks/
-│   ├── EDA.ipynb                # exploratory data analysis, leakage checks
-│   └── model_training.ipynb     # model comparison, CV, threshold tuning
+│   ├── EDA.ipynb                # Exploratory Data Analysis & leakage checks
+│   └── model_training.ipynb     # Model comparison, cross-validation & threshold tuning
 ├── src/
 │   ├── components/
-│   │   ├── data_ingestion.py       # load/validate raw data
-│   │   ├── data_transformation.py  # feature engineering, target, time-based split
-│   │   └── model_trainer.py        # CV, hyperparameter search, MLflow logging
+│   │   ├── data_ingestion.py    # Load raw data
+│   │   ├── data_transformation.py # Time-series feature engineering
+│   │   └── model_trainer.py     # Model training & MLflow logging
 │   ├── pipeline/
-│   │   ├── train_pipeline.py       # runs ingestion -> transformation -> training
-│   │   └── predict_pipeline.py     # loads the saved model; used by the API
-│   ├── exception.py             # custom exception with file/line context
-│   ├── logger.py                 # logging setup
-│   └── utils.py                  # save/load helpers (joblib, json)
+│   │   ├── train_pipeline.py    # End-to-end training pipeline runner
+│   │   ├── predict_pipeline.py  # Model inference pipeline
+│   │   └── weather_fetch.py     # Real-time Open-Meteo weather history fetcher
+│   ├── exception.py             # Custom error handling
+│   ├── logger.py                # Logging configuration
+│   └── utils.py                 # File & model I/O helpers
+├── static/
+│   └── index.html               # Interactive web advisory dashboard
 ├── tests/
-│   ├── test_data_transformation.py  # feature correctness + per-district leakage test
-│   └── test_api.py                  # endpoint status codes and validation
-├── Dockerfile                   # multi-stage build
-├── docker-compose.yml
+│   ├── test_api.py              # API endpoint status & validation tests
+│   └── test_data_transformation.py # Feature engineering & leakage tests
 ├── pytest.ini
 ├── requirements.txt
 └── README.md
 ```
 
-## Getting Started
+---
 
+## 🚀 Getting Started
+
+### 1. Local Setup
 ```bash
-# 1. Clone and set up the environment
+# Clone repository
 git clone https://github.com/aradhya534/flood_risk_mlops.git
 cd flood_risk_mlops
-python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
 
-# 2. Run the full pipeline: ingest -> transform -> train
+# Create & activate virtual environment
+python -m venv .venv
+.venv\Scripts\activate          # On Linux/macOS: source .venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### 2. Run the MLOps Pipeline & MLflow Tracking
+```bash
+# Execute end-to-end training pipeline
 python -m src.pipeline.train_pipeline
 
-# 3. Explore experiment runs
+# Launch MLflow UI
 mlflow ui --backend-store-uri sqlite:///mlflow.db
-
-# 4. Serve the model locally
-uvicorn app.main:app --reload
 ```
 
-### Run with Docker
-
+### 3. Run FastAPI Web Server
 ```bash
-docker build -t flood-risk-api .
+uvicorn app.main:app --reload --port 8000
+```
+Open `http://localhost:8000/` in your browser to view the interactive web dashboard.
+
+---
+
+## 🐳 Docker & AWS Lambda Deployment
+
+### Run Locally with Docker
+```powershell
+docker build --provenance=false -t flood-risk-api .
 docker run -p 8000:8000 flood-risk-api
-# or
-docker compose up
 ```
 
-Interactive API docs (Swagger UI) are available at `http://localhost:8000/docs`.
+### Deploy to AWS Lambda via Script
+You can deploy directly to your AWS Account using [`deploy.ps1`](file:///c:/Users/Acer/Documents/GitHub/flood_risk_mlops/deploy.ps1):
+```powershell
+.\deploy.ps1 -AwsRegion us-east-1 -AwsAccountId <YOUR_AWS_ACCOUNT_ID>
+```
 
-## Experiment Results
+### Automated CI/CD Deployment via GitHub Actions
+Add the following secrets under **Repository Settings -> Secrets and variables -> Actions**:
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `AWS_REGION` (e.g. `us-east-1`)
 
-All models were tuned with `RandomizedSearchCV` using expanding-window time-series cross-validation (4 folds) on 2015–2021 data, scored on PR-AUC. Each model's decision threshold was then chosen on 2022 (validation) to maximize F1, rather than left at the default 0.5.
+On every `git push origin main`, GitHub Actions will automatically build the container, push it to ECR, and update the live AWS Lambda function.
 
-| Model | CV PR-AUC | Val precision | Val recall | Val F1 | Val PR-AUC |
+---
+
+## 📊 Model Performance & Results
+
+Models were trained using expanding-window time-series cross-validation (4 folds) on 2015–2021 data. Decision thresholds were tuned on 2022 validation data to maximize F1 score.
+
+| Model | CV PR-AUC | Val Precision | Val Recall | Val F1 | Val PR-AUC |
 |---|---|---|---|---|---|
-| Persistence baseline (today's status = in 2 days) | – | 0.326 | 0.327 | 0.327 | 0.152 |
+| Persistence Baseline | – | 0.326 | 0.327 | 0.327 | 0.152 |
 | Logistic Regression | 0.316 | 0.265 | 0.626 | 0.373 | 0.296 |
 | Random Forest | 0.333 | 0.280 | 0.561 | 0.374 | 0.307 |
 | LightGBM | 0.336 | 0.290 | 0.587 | 0.388 | 0.318 |
-| **XGBoost (selected)** | **0.336** | **0.303** | 0.556 | **0.392** | 0.316 |
+| **XGBoost (Selected)** | **0.336** | **0.303** | **0.556** | **0.392** | **0.316** |
 
-**XGBoost** was selected as the final model — best F1 and tied-best CV PR-AUC among all four. A feature-selection experiment (dropping the 4 lowest-importance numeric features) was tested with the same CV setup and reduced PR-AUC from 0.336 to 0.320, so the full feature set was kept.
+### Held-Out Test Set (2023–2024)
+- **Precision:** 0.366
+- **Recall:** 0.665
+- **F1 Score:** 0.472
+- **PR-AUC:** 0.422
 
-**Held-out test set (2023–2024, touched exactly once, after every other decision was locked in):**
+---
 
-| Metric | Value |
-|---|---|
-| Precision | 0.366 |
-| Recall | 0.665 |
-| F1 | 0.472 |
-| PR-AUC | 0.422 |
+## 🌐 API Endpoints
 
-Test performance exceeded validation across every metric, most likely because 2023–2024 had a higher advisory rate (8.7% vs. 6.8% in 2022) and more clearly extreme events — not a sign the model generalizes better than validation suggested. A two-year test window is a small sample for that claim either way.
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/` | `GET` | Interactive Web Dashboard |
+| `/predict/live` | `GET` | Fetches Open-Meteo weather history & returns live 48h flood advisory by `lat` & `lon` |
+| `/districts` | `GET` | Returns list of all 25 Sri Lankan district centroids and climatic zones |
+| `/predict` | `POST` | Single district flood advisory prediction from user-supplied history |
+| `/predict/batch` | `POST` | Batch prediction for multiple districts |
+| `/health` | `GET` | Health check endpoint |
 
-**Why not just report accuracy:** the trivial "always predict no flood" rule already scores 93.2% accuracy on this data. The tuned models score 85.8–88.4% — lower, because they deliberately trade some accuracy for far higher recall on the rare, important class. Accuracy alone would make the trivial rule look better than every real model here.
+---
 
-**Feature importance:** for both tree-based models, soil moisture and soil saturation dominate over raw rainfall — matching the physical intuition that flood risk depends on how saturated the ground already is, not just how much rain fell. `district`, taken as a group (all one-hot columns summed), accounted for ~20% of XGBoost's importance but only ~1% of random forest's — suggesting XGBoost partly uses district identity as a proxy for each area's own flood threshold, which random forest instead captures more diffusely through the weather features themselves.
+## 🧪 Testing
 
-## API Usage
-
-```bash
-curl -X POST http://localhost:8000/predict \
-  -H "Content-Type: application/json" \
-  -d '{
-        "records": [
-          {
-            "date": "2022-01-01",
-            "district": "Gampaha",
-            "climatic_zone": "Wet",
-            "precipitation_sum": 12.4,
-            "rain_48h": 22.1,
-            "rain_72h": 30.5,
-            "soil_moisture_0_to_7cm_mean": 0.42,
-            "soil_moisture_7_to_28cm_mean": 0.38,
-            "soil_saturation_index": 0.40,
-            "temperature_2m_max": 29.1,
-            "wind_speed_10m_max": 12.7
-          }
-          // ... at least 14 consecutive days for one district, so rolling
-          // features (7-day sums, etc.) can be computed
-        ]
-      }'
-```
-
-Response:
-```json
-[
-  {
-    "date": "2022-01-20T00:00:00",
-    "district": "Gampaha",
-    "flood_risk_score": 0.076,
-    "advisory_predicted": 0
-  }
-]
-```
-
-| Endpoint | Purpose |
-|---|---|
-| `POST /predict` | Prediction for one district (rejects requests mixing multiple districts) |
-| `POST /predict/batch` | Predictions for multiple districts in one request |
-| `GET /health` | Service health check |
-
-Input is validated with Pydantic (e.g. soil moisture must be between 0 and 1); invalid or insufficient-history requests return `422` rather than a server error.
-
-## Testing and CI/CD
-
-- **Unit tests (pytest, 11 total):**
-  - `test_data_transformation.py` — verifies feature columns are created correctly, rolling windows require enough history before producing values, `rain_7d` matches a manual calculation, and — most importantly — that one district's rolling features never leak into another district's rows
-  - `test_api.py` — checks `/health`, a valid `/predict` request, `/predict` correctly rejecting multi-district input, `/predict/batch` accepting it, and Pydantic rejecting out-of-range or missing fields
-- **GitHub Actions:** on every push and pull request, the workflow lints with `flake8`, checks formatting with `black`, runs the full `pytest` suite, then builds the Docker image — each step must pass before the next runs
-
+Run unit tests covering feature transformation, leak prevention, and API contracts:
 ```bash
 pytest -v
 ```
 
-## Limitations
+---
 
-- The labels are outputs of a statistical risk model built on reanalysis data, not confirmed flood events. Model performance reflects how well the model reproduces that risk engine's classification ahead of time, not verified real-world flood outcomes.
-- ERA5 is a gridded reanalysis at coarse resolution, so it can miss very local, intense rainfall.
-- Flood advisories are rare events; results depend on the chosen decision threshold and evaluation window, and the 2023–2024 test period is a small sample.
-- This project is a portfolio demonstration and is not intended for real emergency decisions.
+## 📜 License & Acknowledgements
 
-## Future Work
-
-- Data and model versioning with DVC
-- Data/concept drift monitoring
-- Shadow or canary deployment of new model versions
-- Scheduled retraining (continuous training)
-- Cloud deployment (Render, Hugging Face Spaces or AWS)
-- Live inference using Open-Meteo's historical weather API instead of user-supplied history
-
-## Acknowledgements
-
-- Dataset by [rasindupramith](https://www.kaggle.com/datasets/rasindupramith/sri-lanka-district-climate-and-flood-risk20152024) on Kaggle. Check the dataset page for its license terms.
-- Weather data from ECMWF ERA5 via the Open-Meteo API.
+- **Dataset:** [Sri Lanka District Climate and Flood Risk (2015-2024)](https://www.kaggle.com/datasets/rasindupramith/sri-lanka-district-climate-and-flood-risk20152024) by rasindupramith on Kaggle.
+- **Weather Data:** ECMWF ERA5 reanalysis via [Open-Meteo API](https://open-meteo.com/).
