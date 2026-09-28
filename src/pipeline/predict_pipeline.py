@@ -8,6 +8,9 @@ from src.utils import load_object, load_json
 from src.components.data_transformation import add_input_features
 
 
+
+
+
 class PredictPipeline:
     def __init__(self):
         try:
