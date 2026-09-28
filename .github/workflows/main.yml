@@ -1,26 +1,40 @@
-name: CI
+name: CI/CD Pipeline
 
 on:
   push:
-    branches: ["**"]
+    branches: ["main"]
   pull_request:
-    branches: ["**"]
+    branches: ["main"]
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+  AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+  ECR_REPOSITORY: flood-risk-api
+  LAMBDA_FUNCTION_NAME: flood-risk-api
 
 jobs:
-  lint-and-test:
+  ci-cd:
+    name: Lint, Test, Build & Deploy
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: Set up Python
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: |
-          pip install -r requirements-dev.txt
-          pip install flake8 black pytest
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt "dvc[s3]"
 
       - name: Lint with flake8
         run: flake8 src app tests --max-line-length=120 --extend-ignore=E203
@@ -28,14 +42,63 @@ jobs:
       - name: Check formatting with black
         run: black --check src app tests
 
-      - name: Run tests
+      # AWS Credentials setup
+      # To swap from IAM Access Keys to OIDC, replace this step with:
+      # - name: Configure AWS Credentials (OIDC)
+      #   uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     role-to-assume: arn:aws:iam::770942507767:role/github-actions-flood-risk
+      #     aws-region: ${{ env.AWS_REGION }}
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Pull DVC Model Artifacts
+        run: |
+          dvc pull models/xgboost_flood_advisory.joblib models/model_config.json || dvc pull
+
+      - name: Run Pytest Suite
         run: pytest -v
 
-  build-docker:
-    runs-on: ubuntu-latest
-    needs: lint-and-test
-    steps:
-      - uses: actions/checkout@v4
+      - name: Build Docker Image
+        run: |
+          docker build --provenance=false --sbom=false -t $ECR_REPOSITORY .
 
-      - name: Build Docker image
-        run: docker build -t flood-risk-api .
+      - name: Log in to Amazon ECR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Push Image to Amazon ECR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker tag $ECR_REPOSITORY:latest $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker tag $ECR_REPOSITORY:latest $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Update AWS Lambda Function Code
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          if aws lambda get-function --function-name $LAMBDA_FUNCTION_NAME --region $AWS_REGION > /dev/null 2>&1; then
+            echo "Updating Lambda function $LAMBDA_FUNCTION_NAME with image $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG..."
+            aws lambda update-function-code \
+              --function-name $LAMBDA_FUNCTION_NAME \
+              --image-uri $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+              --region $AWS_REGION
+            aws lambda wait function-updated \
+              --function-name $LAMBDA_FUNCTION_NAME \
+              --region $AWS_REGION
+            echo "Lambda function updated successfully."
+          else
+            echo "::notice::Lambda function '$LAMBDA_FUNCTION_NAME' does not exist yet. Pushed image URI: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          fi
